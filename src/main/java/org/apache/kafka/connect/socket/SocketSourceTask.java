@@ -22,7 +22,7 @@ import io.reactivex.netty.server.RxServer;
 /**
  * SocketSourceTask is a Task that reads records from a Socket for storage in Kafka.
  *
- * @author Andrea Patelli
+ * @author Created by Dhanuka Ranasinghe on 26/08/2016.
  */
 public class SocketSourceTask extends SourceTask {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceTask.class);
