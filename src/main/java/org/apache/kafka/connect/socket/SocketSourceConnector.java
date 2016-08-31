@@ -21,7 +21,7 @@ import io.reactivex.netty.server.RxServer;
  * SocketSourceConnector implements the connector interface
  * to write on Kafka messages received on a Socket
  *
- * @author Andrea Patelli
+ * @author Created by Dhanuka Ranasinghe on 26/08/2016.
  */
 public class SocketSourceConnector extends SourceConnector {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceConnector.class);
