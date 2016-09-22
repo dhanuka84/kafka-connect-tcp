@@ -1,8 +1,6 @@
 package org.apache.kafka.connect.socket;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,7 +19,7 @@ import rx.schedulers.Schedulers;
 
 public final class RxNettyTCPServer implements Runnable{
 	
-	private static final Logger log = LoggerFactory.getLogger(RxNettyTCPServer.class);
+	private static final Logger LOG = LoggerFactory.getLogger(RxNettyTCPServer.class);
 	
 	protected static final ConcurrentLinkedQueue<byte[]> messages = new ConcurrentLinkedQueue<>();
 	private RxServer<ByteBuf, ByteBuf> nettyServer;
@@ -36,93 +34,99 @@ public final class RxNettyTCPServer implements Runnable{
 	}
 
 	public RxServer<ByteBuf, ByteBuf> createServer() {
+		boolean debugEnabled = LOG.isDebugEnabled();
+		
 		RxServer<ByteBuf, ByteBuf> server = RxNetty
 				.newTcpServerBuilder(port, new ConnectionHandler<ByteBuf, ByteBuf>() {
 					@Override
 					public Observable<Void> handle(final ObservableConnection<ByteBuf, ByteBuf> connection) {
 
-						final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 						final AtomicInteger fullLenth = new AtomicInteger();
 						final AtomicInteger count = new AtomicInteger();
 
-						System.out.println("New client connection established. " + Thread.currentThread().getId());
-						connection.writeBytesAndFlush("Welcome! \n\n".getBytes());
-
-
-						Observable<Void> response = connection.getInput().flatMap(new Func1<ByteBuf, Observable<Void>>() {
+						if(debugEnabled){
+							LOG.debug(" ============================  New client connection established. " 
+									+ Thread.currentThread().getId()+" ==============================");
+						}
+						
+						if(connection.isCloseIssued()){
+							LOG.error("============================   connection closed ============================  " );
+						}
+						
+						Observable<ByteBuf> input = connection.getInput();
+						Observable<Void> response = input.flatMap(new Func1<ByteBuf, Observable<Void>>() {
 
 							@Override
-							public Observable<Void> call(ByteBuf originalBuff) {
+							public Observable<Void> call(final ByteBuf originalBuff) {
 								
 								count.incrementAndGet();
-
-								System.out.println(" Max Capacity: " + originalBuff.maxCapacity());
-								ByteBuf dupBuff = originalBuff.duplicate();
-
-								System.out.println(" Capacity: " + dupBuff.capacity());
+								if(debugEnabled){
+									LOG.debug(" ============================ " 
+											+ " Max Capacity: " + originalBuff.maxCapacity()+" ==============================");
+									LOG.debug(" ============================   Capacity: "+ originalBuff.capacity()+" ==============================");
+								}
+												
 								byte[] bytes;
 								int offset;
-								int length = dupBuff.readableBytes();
+								int length = originalBuff.readableBytes();
 
-								if (dupBuff.hasArray()) {
-									bytes = dupBuff.array();
-									offset = dupBuff.arrayOffset();
+								if (originalBuff.hasArray()) {
+									bytes = originalBuff.array();
+									offset = originalBuff.arrayOffset();
 								} else {
 									bytes = new byte[length];
-									dupBuff.getBytes(dupBuff.readerIndex(), bytes);
+									originalBuff.getBytes(originalBuff.readerIndex(), bytes);
 									offset = 0;
-									System.out.println("doesn't has array");
 								}
 								
 								fullLenth.addAndGet(length);
-
-								try {
-									outputStream.write(bytes);
-								} catch (IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
+								
+								if(debugEnabled){
+									LOG.debug(" ============================ " + "onNext: " + " readable : " + originalBuff.isReadable()
+											+ "  threadId" + Thread.currentThread().getId()+" ==============================");
+									LOG.debug(" ============================   Full Length: "+ fullLenth+ " Lenght: "+ bytes.length+" ==============================");
+						
 								}
-
-								originalBuff.clear();
-								dupBuff.clear();
-
-								System.out.println("onNext: " + length + " readable : " + dupBuff.isReadable()
-										+ "  threadId" + Thread.currentThread().getId());
-
-								if (bytes.length > 0) {
-									return connection.writeBytesAndFlush(bytes);
-								} else {
-									System.out.println("Msg Empty: " + bytes.length);
-									return Observable.empty();
-								}
-							}
-						}).subscribeOn(Schedulers.io())
-						  .doAfterTerminate(new Action0() {
-							@Override
-							public void call() {
-								// connection.close(true);
-								byte finalBytes[] = outputStream.toByteArray();
-								messages.add(finalBytes);
-								//createFile(finalBytes);
-								try {
-									outputStream.flush();
-									outputStream.close();
-									
-									System.out.println(fullLenth+" --- Connection Closed --- " + finalBytes.length);
-									System.out.println(count);
-								} catch (IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								}finally{
-									count.set(0);
+								
+								if(fullLenth.get() == (Integer.MAX_VALUE - 5000)){
+									LOG.info(" ============================ " + (Integer.MAX_VALUE - 5000) + " Number of messages reached to uper limit "+ "==============================");
 									fullLenth.set(0);
 								}
 								
+								Observable<Void> result = null;
+								if (bytes.length > 0) {
+									messages.add(bytes);
+									connection.writeBytes(bytes);
+									result = connection.writeBytesAndFlush("OK\r\n".getBytes());
+								} else {
+									if(debugEnabled){
+										LOG.debug(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
+									}
+									result = Observable.empty();
+								}
+								
+								if(debugEnabled){
+									LOG.debug(" ============================ " + "Message Queue size : " + messages.size()+" ==============================");
+								}
+								
+								return result;
+								
 								
 							}
+						}).subscribeOn(Schedulers.io())
+						  .doOnCompleted(new Action0() {
+							@Override
+							public void call() {
+								try {						
+									if(debugEnabled){
+										LOG.debug(" ============================ " + "Messages count : " + count+" ==============================");
+									}
+								} finally{
+									count.set(0);
+									fullLenth.set(0);
+								}
+							}
 						});
-
-						// subscribePrint(response, "Test");
 
 						return response;
 					}
@@ -132,10 +136,9 @@ public final class RxNettyTCPServer implements Runnable{
 		return server;
 	}
 
-	/*public static void main(final String[] args) {
+	public static void main(final String[] args) {
 		new RxNettyTCPServer(DEFAULT_PORT).createServer().startAndWait();
 	}
-*/
 
 	
 	public static void createFile(byte[] content){
@@ -162,7 +165,7 @@ public final class RxNettyTCPServer implements Runnable{
         	nettyServer = this.createServer();
             nettyServer.startAndWait();
         } catch (Exception e) {
-            log.error(e.getMessage() + "Error Happened when runing thread");
+            LOG.error(e.getMessage() + "Error Happened when runing TCP server thread");
         }
     }
     

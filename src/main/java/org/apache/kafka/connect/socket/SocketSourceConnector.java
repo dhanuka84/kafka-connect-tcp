@@ -21,7 +21,7 @@ import io.reactivex.netty.server.RxServer;
  * SocketSourceConnector implements the connector interface
  * to write on Kafka messages received on a Socket
  *
- * @author Andrea Patelli
+ * @author Dhanuka Ranasinghe
  */
 public class SocketSourceConnector extends SourceConnector {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceConnector.class);
@@ -44,6 +44,7 @@ public class SocketSourceConnector extends SourceConnector {
     
     private RxNettyTCPServer serverHelper;
 	private RxServer<ByteBuf, ByteBuf> nettyServer;
+	private Map<String, String> configProperties;
 
     /**
      * Get the version of this connector.
@@ -64,6 +65,8 @@ public class SocketSourceConnector extends SourceConnector {
     @Override
     public void start(Map<String, String> map) {
         log.info("Parsing configuration");
+        
+        configProperties = map;
 
         port = map.get(PORT);
         if (port == null || port.isEmpty())
@@ -92,6 +95,8 @@ public class SocketSourceConnector extends SourceConnector {
         schemaIgnore = map.get(SCHEMA_IGNORE);
         if (schemaIgnore == null || schemaIgnore.isEmpty())
             throw new ConnectException("Missing " + SCHEMA_IGNORE + " config");
+        
+        SocketConnectorConfig config = new SocketConnectorConfig(map);
         
         serverHelper = new RxNettyTCPServer(Integer.parseInt(port.trim()));
         
@@ -125,20 +130,15 @@ public class SocketSourceConnector extends SourceConnector {
      * @return configurations for the Task
      */
     @Override
-    public List<Map<String, String>> taskConfigs(int i) {
-        ArrayList<Map<String, String>> configs = new ArrayList<>();
-        Map<String, String> config = new HashMap<>();
-        config.put(PORT, port);
-        //config.put(SCHEMA_NAME, schemaName);
-        config.put(BATCH_SIZE, batchSize);
-        config.put(TOPIC, topic);
-        config.put(NAME, name);
-        config.put(MAX_TASKS, maxTasks);
-        config.put(SCHEMA_IGNORE, schemaIgnore);
-        configs.add(config);
-        return configs;
+    public List<Map<String, String>> taskConfigs(int maxTasks) {
+      List<Map<String, String>> taskConfigs = new ArrayList<>();
+      Map<String, String> taskProps = new HashMap<>();
+      taskProps.putAll(configProperties);
+      for (int i = 0; i < maxTasks; i++) {
+        taskConfigs.add(taskProps);
+      }
+      return taskConfigs;
     }
-
     /**
      * Stop this connector.
      */
@@ -163,7 +163,6 @@ public class SocketSourceConnector extends SourceConnector {
 
 	@Override
 	public ConfigDef config() {
-		ConfigDef defs = new ConfigDef();
-		return defs;
+		return SocketConnectorConfig.config;
 	}
 }
