@@ -22,10 +22,10 @@ public class SocketSourceTaskTest {
     public void setup() {
         task = new SocketSourceTask();
         Map<String, String> configs = new HashMap<>();
-        configs.put(SocketSourceConnector.PORT, "12345");
+        configs.put(SocketConnectorConfig.CONNECTION_PORT_CONFIG, "12345");
         configs.put(SocketSourceConnector.SCHEMA_NAME, "schematest");
-        configs.put(SocketSourceConnector.BATCH_SIZE, "100");
-        configs.put(SocketSourceConnector.TOPIC, "topic");
+        configs.put(SocketConnectorConfig.BATCH_SIZE_CONFIG, "100");
+        configs.put(SocketConnectorConfig.TOPICS_CONFIG, "topic");
         task.start(configs);
     }
 

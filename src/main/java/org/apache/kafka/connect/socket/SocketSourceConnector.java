@@ -17,14 +17,16 @@ package org.apache.kafka.connect.socket;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Set;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.socket.batch.BulkProcessor;
 import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,16 +37,10 @@ import io.reactivex.netty.server.RxServer;
 public class SocketSourceConnector extends SourceConnector {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceConnector.class);
 
-    public static final String PORT = "port";
     public static final String SCHEMA_NAME = "schema.name";
-    public static final String BATCH_SIZE = "batch.size";
-    public static final String TOPIC = "topic";
-    public static final String SCHEMA_IGNORE = "schema.ignore";
-    public static final String MAX_TASKS =  "tasks.max";
-    public static final String NAME = "name";
+
 
     private String port;
-    private String schemaName;
     private String batchSize;
     private String topic;
     private String name;
@@ -54,6 +50,8 @@ public class SocketSourceConnector extends SourceConnector {
     private RxNettyTCPServer serverHelper;
 	private RxServer<ByteBuf, ByteBuf> nettyServer;
 	private Map<String, String> configProperties;
+	
+	public static Manager manager;
 
     /**
      * Get the version of this connector.
@@ -77,47 +75,74 @@ public class SocketSourceConnector extends SourceConnector {
         
         configProperties = map;
 
-        port = map.get(PORT);
+        port = map.get(SocketConnectorConfig.CONNECTION_PORT_CONFIG);
         if (port == null || port.isEmpty())
-            throw new ConnectException("Missing " + PORT + " config");
+            throw new ConnectException("Missing " + SocketConnectorConfig.CONNECTION_PORT_CONFIG + " config");
 
-        /*schemaName = map.get(SCHEMA_NAME);
-        if (schemaName == null || schemaName.isEmpty())
-            throw new ConnectException("Missing " + SCHEMA_NAME + " config");*/
-
-        batchSize = map.get(BATCH_SIZE);
+        batchSize = map.get(SocketConnectorConfig.BATCH_SIZE_CONFIG);
+        int batchSizeValue = SocketConnectorConfig.BATCH_SIZE_DEFAULT;
         if (batchSize == null || batchSize.isEmpty())
-            throw new ConnectException("Missing " + BATCH_SIZE + " config");
+            throw new ConnectException("Missing " + SocketConnectorConfig.BATCH_SIZE_CONFIG + " config");
 
-        topic = map.get(TOPIC);
+        topic = map.get(SocketConnectorConfig.TOPICS_CONFIG);
         if (topic == null || topic.isEmpty())
-            throw new ConnectException("Missing " + TOPIC + " config");
+            throw new ConnectException("Missing " + SocketConnectorConfig.TOPICS_CONFIG + " config");
         
-        name = map.get(NAME);
+        String [] topics = topic.split(",");
+        for(String name : topics){
+        	Manager.TOPICS.add(name);
+        }
+        
+        name = map.get(SocketConnectorConfig.NAME_CONFIG);
         if (name == null || name.isEmpty())
-            throw new ConnectException("Missing " + NAME + " config");
+            throw new ConnectException("Missing " + SocketConnectorConfig.NAME_CONFIG + " config");
         
-        maxTasks = map.get(MAX_TASKS);
+        maxTasks = map.get(SocketConnectorConfig.TASKS_MAX_CONFIG);
         if (maxTasks == null || maxTasks.isEmpty())
-            throw new ConnectException("Missing " + MAX_TASKS + " config");
+            throw new ConnectException("Missing " + SocketConnectorConfig.TASKS_MAX_CONFIG + " config");
         
-        schemaIgnore = map.get(SCHEMA_IGNORE);
-        if (schemaIgnore == null || schemaIgnore.isEmpty())
-            throw new ConnectException("Missing " + SCHEMA_IGNORE + " config");
+        String maxInFlightRequests = map.get(SocketConnectorConfig.MAX_IN_FLIGHT_REQUESTS_CONFIG);
+        int maxInFlightRequestsValue = SocketConnectorConfig.MAX_IN_FLIGHT_REQUESTS_DEFAULT;
+        if (!(maxInFlightRequests == null || maxInFlightRequests.isEmpty())){
+        	maxInFlightRequestsValue = Integer.valueOf(maxInFlightRequests);
+        }
+               
+        String lingerMs = map.get(SocketConnectorConfig.LINGER_MS_CONFIG);
+        long lingerMsValue = SocketConnectorConfig.LINGER_MS_DEFAULT;
+        if (!(lingerMs == null || lingerMs.isEmpty())){
+        	lingerMsValue = Long.valueOf(lingerMs);
+        }
         
+        String maxRetry = map.get(SocketConnectorConfig.MAX_RETRY_CONFIG);
+        int maxRetryValue = SocketConnectorConfig.MAX_RETRY_DEFAULT;
+        if (!(maxRetry == null || maxRetry.isEmpty())){
+        	maxRetryValue = Integer.valueOf(maxRetry);
+        }
+        
+        String retryBackOffMs = map.get(SocketConnectorConfig.RETRY_BACKOFF_MS_CONFIG);
+        long retryBackOffMsValue = SocketConnectorConfig.RETRY_BACKOFF_MS_DEFAULT;
+        if (!(retryBackOffMs == null || retryBackOffMs.isEmpty())){
+        	retryBackOffMsValue = Long.valueOf(retryBackOffMs);
+        }
+        
+        //create configurations
         SocketConnectorConfig config = new SocketConnectorConfig(map);
-        
+        //create bulk processor
+        BulkProcessor processor = new BulkProcessor(maxInFlightRequestsValue, batchSizeValue, lingerMsValue
+        		, maxRetryValue, retryBackOffMsValue); 
+        //initialize manager
+        manager = Manager.initialize(processor);
+        //initialize tcp server helper
         serverHelper = new RxNettyTCPServer(Integer.parseInt(port.trim()));
         
         new Thread(serverHelper).start();
+        processor.start();
         try {
 			Thread.sleep(5000);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (InterruptedException ex) {
+			log.error("Error while starting TCP server thread" +ex.getMessage());
 		}
         nettyServer = serverHelper.getNettyServer();
-
         dumpConfiguration(map);
     }
 
@@ -156,9 +181,9 @@ public class SocketSourceConnector extends SourceConnector {
     	if(nettyServer != null){
     		try {
 				nettyServer.shutdown();
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				log.error(e.getMessage());
+				Manager.getProcessor().stop();
+			} catch (InterruptedException ex) {
+				log.error("Error while stoping TCP server thread" +ex.getMessage());
 			}
     	}
     }
@@ -174,4 +199,6 @@ public class SocketSourceConnector extends SourceConnector {
 	public ConfigDef config() {
 		return SocketConnectorConfig.config;
 	}
+	
+	
 }

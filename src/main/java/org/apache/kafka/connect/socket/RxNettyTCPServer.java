@@ -20,11 +20,10 @@ import rx.schedulers.Schedulers;
 public final class RxNettyTCPServer implements Runnable{
 	
 	private static final Logger LOG = LoggerFactory.getLogger(RxNettyTCPServer.class);
-	
-	protected static final ConcurrentLinkedQueue<byte[]> messages = new ConcurrentLinkedQueue<>();
+
 	private RxServer<ByteBuf, ByteBuf> nettyServer;
 
-	static final int DEFAULT_PORT = 8791;
+	static final int DEFAULT_PORT = SocketConnectorConfig.CONNECTION_PORT_DEFAULT;
 
 	private final int port;
 	
@@ -59,30 +58,31 @@ public final class RxNettyTCPServer implements Runnable{
 							@Override
 							public Observable<Void> call(final ByteBuf originalBuff) {
 								
+								ByteBuf buff = originalBuff.duplicate();
 								count.incrementAndGet();
 								if(debugEnabled){
 									LOG.debug(" ============================ " 
-											+ " Max Capacity: " + originalBuff.maxCapacity()+" ==============================");
-									LOG.debug(" ============================   Capacity: "+ originalBuff.capacity()+" ==============================");
+											+ " Max Capacity: " + buff.maxCapacity()+" ==============================");
+									LOG.debug(" ============================   Capacity: "+ buff.capacity()+" ==============================");
 								}
 												
 								byte[] bytes;
 								int offset;
-								int length = originalBuff.readableBytes();
+								int length = buff.readableBytes();
 
-								if (originalBuff.hasArray()) {
-									bytes = originalBuff.array();
-									offset = originalBuff.arrayOffset();
+								if (buff.hasArray()) {
+									bytes = buff.array();
+									offset = buff.arrayOffset();
 								} else {
 									bytes = new byte[length];
-									originalBuff.getBytes(originalBuff.readerIndex(), bytes);
+									buff.getBytes(buff.readerIndex(), bytes);
 									offset = 0;
 								}
 								
 								fullLenth.addAndGet(length);
 								
 								if(debugEnabled){
-									LOG.debug(" ============================ " + "onNext: " + " readable : " + originalBuff.isReadable()
+									LOG.debug(" ============================ " + "onNext: " + " readable : " + buff.isReadable()
 											+ "  threadId" + Thread.currentThread().getId()+" ==============================");
 									LOG.debug(" ============================   Full Length: "+ fullLenth+ " Lenght: "+ bytes.length+" ==============================");
 						
@@ -95,8 +95,8 @@ public final class RxNettyTCPServer implements Runnable{
 								
 								Observable<Void> result = null;
 								if (bytes.length > 0) {
-									messages.add(bytes);
-									connection.writeBytes(bytes);
+									Manager.MESSAGES.add(bytes);
+									//connection.writeBytes(bytes);
 									result = connection.writeBytesAndFlush("OK\r\n".getBytes());
 								} else {
 									if(debugEnabled){
@@ -106,7 +106,7 @@ public final class RxNettyTCPServer implements Runnable{
 								}
 								
 								if(debugEnabled){
-									LOG.debug(" ============================ " + "Message Queue size : " + messages.size()+" ==============================");
+									LOG.debug(" ============================ " + "Message Queue size : " + Manager.MESSAGES.size()+" ==============================");
 								}
 								
 								return result;

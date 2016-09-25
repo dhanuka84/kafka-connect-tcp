@@ -15,16 +15,12 @@
  *******************************************************************************/
 package org.apache.kafka.connect.socket;
 
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.kafka.connect.data.ConnectSchema;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.socket.batch.BulkProcessor;
+import org.apache.kafka.connect.socket.batch.RecordBatch;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.storage.Converter;
@@ -35,16 +31,11 @@ import org.slf4j.LoggerFactory;
 
 public class SocketSourceTask extends SourceTask {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceTask.class);
-
-    private Integer port;
-    private Integer batchSize = 100;
-    private String topic;
-    private static Schema schema = null;
     
     private static Converter converter;
 
     static {
-      // Config the JsonConverter
+      // Config the String Converter
       converter = new StringConverter();
       Map<String, String> configs = new HashMap<>();
       configs.put("schemas.enable", "false");
@@ -63,19 +54,8 @@ public class SocketSourceTask extends SourceTask {
      */
     @Override
     public void start(Map<String, String> map) {
-        try {
-            port = Integer.parseInt(map.get(SocketSourceConnector.PORT));
-        } catch (Exception e) {
-            throw new ConnectException(SocketSourceConnector.PORT + " config should be an Integer");
-        }
-
-        try {
-            batchSize = Integer.parseInt(map.get(SocketSourceConnector.BATCH_SIZE));
-        } catch (Exception e) {
-            throw new ConnectException(SocketSourceConnector.BATCH_SIZE + " config should be an Integer");
-        }
-
-        topic = map.get(SocketSourceConnector.TOPIC);
+    	log.info(" Socket task started ");
+        
     }
 
     /**
@@ -88,51 +68,46 @@ public class SocketSourceTask extends SourceTask {
     @Override
     public List<SourceRecord> poll() throws InterruptedException {
     	
-    	Thread.sleep(1000);
-        List<SourceRecord> records = new ArrayList<>(0);
-        byte[] message = null;
-        try{
-        	// while there are new messages in the socket queue
-            System.out.println(" Size of the messages "+ RxNettyTCPServer.messages.size() + " List size "+ records.size());
-            while (!RxNettyTCPServer.messages.isEmpty()) {
-                // get the message
-                message = RxNettyTCPServer.messages.poll();
-                if(message.length < 5){
-                	System.out.println(" ***********************************  empty message ************************  "+message.length);
-                	continue;
-                }
-               
-                final Map<String, String> partition = Collections.singletonMap(SocketConnectorConstants.PARTITION_KEY, topic);
-                //SourceRecord record = new SourceRecord(partition, null, topic, ConnectSchema.BYTES_SCHEMA, message);
-                Charset charset = Charset.forName("UTF-8");
-                String strMsg = new String(message, charset);
-                log.info(strMsg);
-                byte[] fromConn = converter.fromConnectData(topic, ConnectSchema.STRING_SCHEMA,strMsg);
-                strMsg = new String(fromConn, charset);
-                log.info(strMsg);
-                SourceRecord record = new SourceRecord(partition, null, topic, ConnectSchema.STRING_SCHEMA,strMsg);
-                records.add(record);
-                log.info(" Added Record "+message.length);
-            }
-        }catch(Throwable ex){
-        	
-        	StringBuilder error = new StringBuilder();
-        	StackTraceElement[] stacks = ex.getStackTrace();
-        	for(StackTraceElement stack : stacks){
-        		error.append(stack.toString()).append("\n");
-        	}
-        	log.error("==============================="+((ex.getCause() != null? ex.getCause().getMessage() + " ++++++++ " + error.toString(): "" +error.toString())));
-        	log.error(" ==============================  payload : "+ new String(message));
-        	return null;
-        	 
-        }
-        
-        if(!records.isEmpty()){
-        	return records;
-        }
+		List<SourceRecord> records = null;
+		BulkProcessor processor = Manager.getProcessor();
+		int batchSize = processor.getBatchSize();
+		try {
+			long now = System.currentTimeMillis();
+			RecordBatch batch = new RecordBatch(now);
+			int count = 1;
+			while (!Manager.MESSAGES.isEmpty() || canSubmit(batch, System.currentTimeMillis(), processor.getLingerMs())) {
+				if (++count > batchSize || canSubmit(batch, System.currentTimeMillis(), processor.getLingerMs())) {
+					break;
+				}
+				byte[] bytes = Manager.MESSAGES.poll();
+				if(bytes != null){
+					//add bytes to batch
+					processor.addBytesToBatch(bytes, batch);
+					//add bytes to queue
+					processor.add(batch);
+					records = processor.process();
+				}				
+
+			}
+			
+		} catch (Throwable ex) {
+			String error = Manager.getStackTrace(ex);
+			log.error("==============================="+ ((ex.getCause() != null ? ex.getCause().getMessage() + "\n" + error : "" + error)));
+			log.error(" ========================= Payload : "+Manager.createPayLoad(records));
+			return null;
+
+		}
+
+		if (records != null && !records.isEmpty()) {
+			return records;
+		}
         
                 
         return null;
+    }
+    
+    private boolean canSubmit(RecordBatch batch, long now, long lingerMs) {
+    	return ( now - batch.getLastAttemptMs() > lingerMs);
     }
 
     /**
@@ -140,8 +115,7 @@ public class SocketSourceTask extends SourceTask {
      */
     @Override
     public void stop() {
-    	
-        //socketServerThread.stop();
+    	log.info(" Socket task stopped ");
     }
     
 }
