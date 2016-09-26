@@ -1,9 +1,15 @@
 package org.apache.kafka.connect.socket;
 
-import java.io.FileOutputStream;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.kafka.connect.data.ConnectSchema;
+import org.apache.kafka.connect.data.SchemaAndValue;
+import org.apache.kafka.connect.json.JsonConverter;
+import org.apache.kafka.connect.storage.Converter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +39,8 @@ public final class RxNettyTCPServer implements Runnable{
 	}
 
 	public RxServer<ByteBuf, ByteBuf> createServer() {
-		boolean debugEnabled = LOG.isDebugEnabled();
+		//boolean debugEnabled = LOG.isDebugEnabled();
+		boolean debugEnabled = true;
 		
 		RxServer<ByteBuf, ByteBuf> server = RxNetty
 				.newTcpServerBuilder(port, new ConnectionHandler<ByteBuf, ByteBuf>() {
@@ -42,6 +49,8 @@ public final class RxNettyTCPServer implements Runnable{
 
 						final AtomicInteger fullLenth = new AtomicInteger();
 						final AtomicInteger count = new AtomicInteger();
+						
+						ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
 
 						if(debugEnabled){
 							LOG.debug(" ============================  New client connection established. " 
@@ -95,9 +104,15 @@ public final class RxNettyTCPServer implements Runnable{
 								
 								Observable<Void> result = null;
 								if (bytes.length > 0) {
-									Manager.MESSAGES.add(bytes);
+									//Manager.MESSAGES.add(bytes);
+									try {
+										outputStream.write(bytes);
+									} catch (IOException e) {
+										LOG.error(" Error while storing byte array ");
+									}
 									//connection.writeBytes(bytes);
 									result = connection.writeBytesAndFlush("OK\r\n".getBytes());
+									//result = Observable.empty();
 								} else {
 									if(debugEnabled){
 										LOG.debug(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
@@ -117,13 +132,22 @@ public final class RxNettyTCPServer implements Runnable{
 						  .doOnCompleted(new Action0() {
 							@Override
 							public void call() {
-								try {						
+								try {		
+									System.out.println("inside complete");
+									byte[] wholeMsg = outputStream.toByteArray();
+									Manager.MESSAGES.add(wholeMsg);
+									//System.out.println(new String(wholeMsg));
 									if(debugEnabled){
 										LOG.debug(" ============================ " + "Messages count : " + count+" ==============================");
 									}
 								} finally{
-									count.set(0);
+									//count.set(0);
 									fullLenth.set(0);
+									try {
+										outputStream.close();
+									} catch (IOException ex) {
+										LOG.error(" Error while closing BOS "+ex);
+									}
 								}
 							}
 						});
@@ -136,25 +160,36 @@ public final class RxNettyTCPServer implements Runnable{
 		return server;
 	}
 
-	public static void main(final String[] args) {
-		new RxNettyTCPServer(DEFAULT_PORT).createServer().startAndWait();
-	}
-
-	
-	public static void createFile(byte[] content){
-		FileOutputStream fos;
-		try {
-			fos = new FileOutputStream("/home/uranadh/Desktop/final.txt");
-			fos.write(content);
-			fos.close();
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+	public static void main(final String[] args) throws InterruptedException {
+		 //initialize tcp server helper
+		RxNettyTCPServer serverHelper = new RxNettyTCPServer(DEFAULT_PORT);
+        
+        new Thread(serverHelper).start();
+        try {
+			Thread.sleep(5000);
+		} catch (InterruptedException ex) {
+			LOG.error("Error while starting TCP server thread" +ex.getMessage());
+		}
+        RxServer<ByteBuf, ByteBuf> nettyServer = serverHelper.getNettyServer();
+		Thread.sleep(5000l);
+		
+		Converter converter = new JsonConverter();
+		Map<String, String> configs = new HashMap<>();
+		configs.put("schemas.enable", "false");
+		converter.configure(configs, false);
+		while(true){
+			byte [] bytes = Manager.MESSAGES.poll();
+			if(bytes != null){
+				SchemaAndValue value = converter.toConnectData("test", bytes);
+				System.out.println(value.value());
+				/*byte[] converted = converter.fromConnectData("test", ConnectSchema.STRING_SCHEMA, bytes);
+				System.out.println(new String(converted));*/
+			}
 		}
 		
-
-		System.out.println("Done");
+		
 	}
+
 	
 	/**
      * Run the thread.

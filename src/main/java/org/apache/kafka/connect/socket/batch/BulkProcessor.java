@@ -18,7 +18,6 @@ package org.apache.kafka.connect.socket.batch;
 
 import java.nio.charset.Charset;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -27,8 +26,6 @@ import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.socket.Manager;
 import org.apache.kafka.connect.socket.SocketConnectorConstants;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.connect.storage.StringConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,14 +37,6 @@ public class BulkProcessor {
 	private final long lingerMs;
 	private static volatile boolean running;
 
-	private static Converter converter;
-
-	static {
-		converter = new StringConverter();
-		Map<String, String> configs = new HashMap<>();
-		configs.put("schemas.enable", "false");
-		converter.configure(configs, false);
-	}
 
 	public BulkProcessor(int maxInFlightRequests, int batchSize, long lingerMs, int maxRetry, long retryBackOffMs) {
 		this.requests = new ConcurrentLinkedQueue<>();
@@ -100,8 +89,8 @@ public class BulkProcessor {
 		requests.add(batch);
 	}
 
-
-	private SourceRecord constructBulk(byte[] message) {
+	//testing purpose
+	public SourceRecord constructBulk(byte[] message) {
 		// TODO identify topic and create key
 		String topic = Manager.TOPICS.iterator().next();
 		SourceRecord record = null;

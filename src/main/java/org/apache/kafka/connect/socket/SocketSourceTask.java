@@ -15,7 +15,6 @@
  *******************************************************************************/
 package org.apache.kafka.connect.socket;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,8 +22,6 @@ import org.apache.kafka.connect.socket.batch.BulkProcessor;
 import org.apache.kafka.connect.socket.batch.RecordBatch;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
-import org.apache.kafka.connect.storage.Converter;
-import org.apache.kafka.connect.storage.StringConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,15 +29,6 @@ import org.slf4j.LoggerFactory;
 public class SocketSourceTask extends SourceTask {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceTask.class);
     
-    private static Converter converter;
-
-    static {
-      // Config the String Converter
-      converter = new StringConverter();
-      Map<String, String> configs = new HashMap<>();
-      configs.put("schemas.enable", "false");
-      converter.configure(configs, false);
-    }
 
     @Override
     public String version() {
