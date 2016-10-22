@@ -25,7 +25,7 @@ public class SocketSourceTaskTest {
         configs.put(SocketConnectorConfig.CONNECTION_PORT_CONFIG, "12345");
         configs.put(SocketSourceConnector.SCHEMA_NAME, "schematest");
         configs.put(SocketConnectorConfig.BATCH_SIZE_CONFIG, "100");
-        configs.put(SocketConnectorConfig.TOPICS_CONFIG, "topic");
+        configs.put(SocketConnectorConfig.ERROR_TOPIC_CONFIG, "topic");
         task.start(configs);
     }
 

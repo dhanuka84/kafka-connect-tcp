@@ -1,0 +1,12 @@
+{
+"events_stateTriggerId":"monitoredCIName,producer,stateTriggerId,locationCode",
+"events_objectId":"monitoredCIName,producer,stateTriggerId,locationCode,raisedTimestamp",
+"metrics_id":"domain",
+"metrics_domains":"SUM,RUM,HEALTH,TIK",
+"events_domains":"SUM,RUM,APM,IPM,NPM,TIK",
+"metrics_partition_key":"monitoredCIName,producer,locationCode",
+"events_partition_key":"monitoredCIName,producer,locationCode",
+"domain_topic_mapping":"event_sum:event_topic,metric_rum:metric_topic",
+"error_topic":"ERROR_TOPIC",
+"cmdb_connection":"10.76.133.208:209"
+}

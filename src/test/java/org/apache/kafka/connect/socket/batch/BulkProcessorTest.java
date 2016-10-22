@@ -87,7 +87,7 @@ public class BulkProcessorTest {
     int batchSize = 5;
     int numRecords = 10;
 
-    BulkProcessor bulkProcessor = new BulkProcessor(maxInFlightRequests, batchSize, lingerMs, maxRetry, retryBackoffMs);
+    BulkProcessor bulkProcessor = new BulkProcessor();
     bulkProcessor.start();
 
     addRecords(bulkProcessor, numRecords);

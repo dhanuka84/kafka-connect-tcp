@@ -16,12 +16,16 @@
 
 package org.apache.kafka.connect.socket.batch;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.kafka.connect.source.SourceRecord;
 
-public class RecordBatch {
+public class RecordBatch implements Serializable{
+
+	private static final long serialVersionUID = 8231175871739109470L;
+	
 	private final List<SourceRecord> requests;
 	private long lastAttemptMs;
 

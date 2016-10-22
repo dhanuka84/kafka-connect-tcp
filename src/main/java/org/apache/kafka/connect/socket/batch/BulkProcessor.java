@@ -16,44 +16,39 @@
 
 package org.apache.kafka.connect.socket.batch;
 
+import static org.apache.kafka.connect.socket.SocketConnectorConstants.*;
+
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.socket.Manager;
-import org.apache.kafka.connect.socket.SocketConnectorConstants;
+import org.apache.kafka.connect.socket.cache.CMDBManager;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.gson.JsonObject;
+
+import io.netty.util.internal.StringUtil;
+
 public class BulkProcessor {
 
 	private static final Logger log = LoggerFactory.getLogger(BulkProcessor.class);
-	private final ConcurrentLinkedQueue<RecordBatch> requests;
-	private final int batchSize;
-	private final long lingerMs;
+	private static final ConcurrentLinkedQueue<RecordBatch> requests = new ConcurrentLinkedQueue<>();
 	private static volatile boolean running;
 
 
-	public BulkProcessor(int maxInFlightRequests, int batchSize, long lingerMs, int maxRetry, long retryBackOffMs) {
-		this.requests = new ConcurrentLinkedQueue<>();
-		this.batchSize = batchSize;
-		this.lingerMs = lingerMs;
+	public BulkProcessor() {
 	}
 
 	public ConcurrentLinkedQueue<RecordBatch> getRequests() {
 		return requests;
-	}
-
-	public int getBatchSize() {
-		return batchSize;
-	}
-
-	public long getLingerMs() {
-		return lingerMs;
 	}
 
 	public void start() {
@@ -78,8 +73,9 @@ public class BulkProcessor {
 	}
 
 
-	public void addBytesToBatch(final byte[] request, final RecordBatch batch) {
-		SourceRecord record = constructBulk(request);
+	public void addBytesToBatch(final byte[] request, final RecordBatch batch,Map<String,
+			Set<String>> idMap, Map<String,String> domainTopicMap) {
+		SourceRecord record = constructBulk(request, idMap, domainTopicMap);
 		if (record != null) {
 			batch.add(record);
 		}
@@ -90,32 +86,66 @@ public class BulkProcessor {
 	}
 
 	//testing purpose
-	public SourceRecord constructBulk(byte[] message) {
-		// TODO identify topic and create key
-		String topic = Manager.TOPICS.iterator().next();
+	public SourceRecord constructBulk(byte[] message, Map<String,Set<String>> idMap, Map<String,String> domainTopicMap) {
 		SourceRecord record = null;
+		String errorTopic = idMap.get(ERROR_TOPIC_CONFIG).iterator().next();
 		try {
 			if (message.length < 20) {
-				String errorMsg = " ***********************************  empty or incomplete message ************************  "
-						+ message.length;
+				String errorMsg = " **************** empty or incomplete message ************************  "+ message.length;
 				log.error(errorMsg);
 				return null;
 			}
 
-			final Map<String, String> partition = Collections.singletonMap(SocketConnectorConstants.PARTITION_KEY,
-					SocketConnectorConstants.PARTITION_KEY);
+			
 			Charset charset = Charset.forName("UTF-8");
-			String strMsg = new String(message, charset);
-			record = new SourceRecord(partition, null, topic,ConnectSchema.STRING_SCHEMA,topic,ConnectSchema.STRING_SCHEMA, strMsg);
+			String jsonPayload = new String(message, charset);
+			
+			//md5 hash
+			final JsonObject jsonObj = Manager.getJsonObject(jsonPayload);
+			String eventsStateTriggerId = Manager.generateKeysUsingFields(jsonObj, EVENTS_STATE_TRIGGER_ID,idMap);
+			String objectId = Manager.generateKeysUsingFields(jsonObj, EVENTS_OBJECTID,idMap);
+			String md5StateTrigger = Manager.getMD5HexValue(eventsStateTriggerId);
+			String md5ObjectId = Manager.getMD5HexValue(objectId);
+			String objectIdFieldName = EVENTS_OBJECTID.substring(EVENTS_OBJECTID.indexOf("_") + 1);
+			String stateTrigerIdFieldName = EVENTS_STATE_TRIGGER_ID.substring(EVENTS_STATE_TRIGGER_ID.indexOf("_") + 1);
+			
+			//add additional fields to payload
+			Manager.addFieldToPayload(jsonObj, Collections.singletonMap(objectIdFieldName, md5ObjectId));
+			Manager.addFieldToPayload(jsonObj, Collections.singletonMap(stateTrigerIdFieldName, md5StateTrigger));
+			
+			//create partition key
+			String eventPartitionKey = Manager.generateKeysUsingFields(jsonObj, EVENTS_PARTITION_KEY,idMap);
+			String eventPartitionKeyMD5 = Manager.getMD5HexValue(eventPartitionKey);
+			
+			String topic = null;
+			String domain = jsonObj.get(DOMAIN_TAG_NAME).getAsString();
+			String msgType = jsonObj.get(MSG_TYPE_TAG_NAME).getAsString();
+			if(StringUtil.isNullOrEmpty(domain) || StringUtil.isNullOrEmpty(msgType)){
+				topic = errorTopic;
+				log.error("Domain or msgType Tag is missing");
+			}else{
+				//TODO need to find msg type
+				topic = domainTopicMap.get(msgType.toLowerCase()+"_"+domain.toLowerCase());
+			}
+			
+			if(MessageType.EVENT.toString().equalsIgnoreCase(msgType)){
+				//TODO cmdb cache access
+				
+				CMDBManager manager = CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS);
+				String value = manager.getValueBykey("");
+			}
+			
+			
+
+			Map<String, String> partition = Collections.singletonMap(PARTITION_KEY,eventPartitionKeyMD5);
+			record = new SourceRecord(partition, null, topic,ConnectSchema.STRING_SCHEMA,eventPartitionKeyMD5,
+					ConnectSchema.STRING_SCHEMA, jsonObj.toString());
 
 		} catch (Throwable ex) {
-			StringBuilder error = new StringBuilder();
-			StackTraceElement[] stacks = ex.getStackTrace();
-			for (StackTraceElement stack : stacks) {
-				error.append(stack.toString()).append("\n");
-			}
+			log.error(Manager.getStackTrace(ex));
 		}
 		return record;
 	}
+	
 
 }

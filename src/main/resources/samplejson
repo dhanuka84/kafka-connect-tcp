@@ -1,0 +1,65 @@
+ {
+    "storedTimestamp": "2016-08-01T09:40:20+0000",
+    "assignedToName": "",
+    "domain": "SUM",
+    "msgType":"EVENT",
+    "workDuration": "",
+    "incidentNumber": "",
+    "minionId": "",
+    "producer": "collector.newrelicsynthetics.events",
+    "geolocLon": "",
+    "minion": "",
+    "eventType": "equella Washington, DC, USA, india",
+    "platforms": [
+      ""
+    ],
+    "detailsURL": "",
+    "locationLabel": "Washington, DC, USA",
+    "message": "{'monitorId': '5da90f46-2cec-4d8f-9848-00a34d454f3b', 'product': 'equella Washington, DC, USA', 'warningThreshold': 10000.0, 'criticalThreshold': 40000.0, 'hashVal': '5da90f46-2cec-4d8f-9848-00a34d454f3bAWS_US_EAST_1', 'duration': 10070.447999997006, 'location': 'AWS_US_EAST_1', 'locationLabel': 'Washington, DC, USA', 'monitoredCIID': \"[u'f940e087377f3140b0662ea843990e0a']\", 'monitorName': 'OMP-NS: Equella Bridgepoint Ashford: KB0011479', 'severity': 3}",
+    "monitoredCIID": "[u'f940e087377f3140b0662ea843990e0a']",
+    "isReset": false,
+    "extraSourceData": {},
+    "objectType": "alertState",
+    "category": "Performance",
+    "relatedStatesIds": [
+      ""
+    ],
+    "severity": 3,
+    "objectId": "8797ba4c8ed4ec834fc8797d9114f4fb",
+    "title": "[Response Time Failure detected] OMP-NS: Equella Bridgepoint Ashford: KB0011479",
+    "hostname": "",
+    "comments": "",
+    "sourceEventsCount": 1,
+    "trigger": "[Response Time Failure detected] OMP-NS: Equella Bridgepoint Ashford: KB0011479",
+    "KBArticle": "",
+    "products": [
+      ""
+    ],
+    "toolUUID": "",
+    "testedLocation": "",
+    "dateRaised": "2016-08-01",
+    "closedTimestamp": null,
+    "relatedEventsIds": [
+      ""
+    ],
+    "description": "Test name - OMP-NS: Equella Bridgepoint Ashford: KB0011479  | Test duration - 10070.448ms | Warning threshold - 10000.0ms | Critical threshold - 40000.0ms",
+    "locationCoordinates": [
+      0,
+      0
+    ],
+    "duration": 10070.447999997006,
+    "monitoredCIName": "",
+    "raisedLocalTimestamp": "2016-08-01T09:40:20+0000",
+    "locationCode": "AWS_US_EAST_1",
+    "version": 1,
+    "stateTriggerId": "8eec7a33fdd79a0d30d481962a4998e5",
+    "activeDuration": "",
+    "monitoredCIClass": "",
+    "assignedToId": "",
+    "resetTimestamp": null,
+    "geolocLat": "",
+    "status": "new",
+    "timestampUpdated": "2016-08-01T09:40:20+0000",
+    "raisedTimestamp": "2016-08-01T09:40:20+0000",
+    "dateHourEnded": null
+  }

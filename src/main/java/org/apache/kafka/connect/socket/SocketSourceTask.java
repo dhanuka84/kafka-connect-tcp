@@ -15,11 +15,16 @@
  *******************************************************************************/
 package org.apache.kafka.connect.socket;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.kafka.connect.socket.batch.BulkProcessor;
 import org.apache.kafka.connect.socket.batch.RecordBatch;
+import org.apache.kafka.connect.socket.cache.CMDBManager;
+import org.apache.kafka.connect.socket.database.AbstractDBManager;
+import org.apache.kafka.connect.socket.database.AbstractDBManager.DBType;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
@@ -29,6 +34,12 @@ import org.slf4j.LoggerFactory;
 public class SocketSourceTask extends SourceTask {
     private final static Logger log = LoggerFactory.getLogger(SocketSourceTask.class);
     
+    /** All the ID/Key related mappings and domain names***/
+    private final Map<String,Set<String>> ID_MAP = new HashMap<>(); 
+    /** Domain and Topic mappings- domain name will be the key while topic will be the value**/
+    private final Map<String,String> DOMAIN_TOPIC_MAP = new HashMap<>();
+    private  BulkProcessor processor = null;
+    private SocketConnectorConfig config = null;
 
     @Override
     public String version() {
@@ -40,11 +51,22 @@ public class SocketSourceTask extends SourceTask {
      *
      * @param map initial configuration
      */
-    @Override
-    public void start(Map<String, String> map) {
-    	log.info(" Socket task started ");
-        
-    }
+	@Override
+	public void start(Map<String, String> map) {
+		// create configurations
+		log.info(" Socket task starting ");
+		config = new SocketConnectorConfig(map);
+		Manager.dumpConfiguration(map);
+		Manager.reMapDomainConfigurations(config, map, DOMAIN_TOPIC_MAP, ID_MAP);
+		processor = new BulkProcessor();
+		CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS).start(map);
+		DBType[] dbTypes = DBType.values();
+		for(DBType type : dbTypes){
+			AbstractDBManager.getDBManager(type).start(map);
+		}
+		log.info(" Socket task started ");
+
+	}
 
     /**
      * Poll this SocketSourceTask for new records.
@@ -57,21 +79,21 @@ public class SocketSourceTask extends SourceTask {
     public List<SourceRecord> poll() throws InterruptedException {
     	
 		List<SourceRecord> records = null;
-		BulkProcessor processor = Manager.getProcessor();
-		int batchSize = processor.getBatchSize();
+		long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
+		int batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
 		try {
 			long now = System.currentTimeMillis();
 			RecordBatch batch = new RecordBatch(now);
-			int count = 1;
-			while (!Manager.MESSAGES.isEmpty() || canSubmit(batch, System.currentTimeMillis(), processor.getLingerMs())) {
-				if (++count > batchSize || canSubmit(batch, System.currentTimeMillis(), processor.getLingerMs())) {
+			int count = 0;
+			while (!Manager.MESSAGES.isEmpty() || canSubmit(batch, System.currentTimeMillis(),lingerMs)) {
+				if (++count > batchSize || canSubmit(batch, System.currentTimeMillis(), lingerMs)) {
 					break;
 				}
 				byte[] bytes = Manager.MESSAGES.poll();
 				if(bytes != null){
 					//add bytes to batch
-					processor.addBytesToBatch(bytes, batch);
-					//add bytes to queue
+					processor.addBytesToBatch(bytes, batch, ID_MAP,DOMAIN_TOPIC_MAP);
+					//add bytes to ConcurrentLinkedQueue
 					processor.add(batch);
 					records = processor.process();
 				}				
@@ -103,6 +125,12 @@ public class SocketSourceTask extends SourceTask {
      */
     @Override
     public void stop() {
+    	CMDBManager manager = CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS);
+		manager.stop();
+		DBType[] dbTypes = DBType.values();
+		for(DBType type : dbTypes){
+			AbstractDBManager.getDBManager(type).stop();
+		}
     	log.info(" Socket task stopped ");
     }
     

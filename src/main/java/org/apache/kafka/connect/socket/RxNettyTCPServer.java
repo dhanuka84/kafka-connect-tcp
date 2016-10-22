@@ -110,9 +110,9 @@ public final class RxNettyTCPServer implements Runnable{
 									} catch (IOException e) {
 										LOG.error(" Error while storing byte array ");
 									}
-									//connection.writeBytes(bytes);
-									result = connection.writeBytesAndFlush("OK\r\n".getBytes());
-									//result = Observable.empty();
+									connection.writeBytes(bytes);
+									//result = connection.writeBytesAndFlush("OK\r\n".getBytes());
+									result = Observable.empty();
 								} else {
 									if(debugEnabled){
 										LOG.debug(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
@@ -137,6 +137,13 @@ public final class RxNettyTCPServer implements Runnable{
 									byte[] wholeMsg = outputStream.toByteArray();
 									Manager.MESSAGES.add(wholeMsg);
 									//System.out.println(new String(wholeMsg));
+									//TODO write after complete
+									Observable<Void> result = null;
+									//connection.writeBytesAndFlush("OK\r\n".getBytes());
+									if(!connection.isCloseIssued()){
+										connection.close(true);
+									}
+									
 									if(debugEnabled){
 										LOG.debug(" ============================ " + "Messages count : " + count+" ==============================");
 									}
@@ -161,17 +168,8 @@ public final class RxNettyTCPServer implements Runnable{
 	}
 
 	public static void main(final String[] args) throws InterruptedException {
-		 //initialize tcp server helper
-		RxNettyTCPServer serverHelper = new RxNettyTCPServer(DEFAULT_PORT);
-        
-        new Thread(serverHelper).start();
-        try {
-			Thread.sleep(5000);
-		} catch (InterruptedException ex) {
-			LOG.error("Error while starting TCP server thread" +ex.getMessage());
-		}
-        RxServer<ByteBuf, ByteBuf> nettyServer = serverHelper.getNettyServer();
-		Thread.sleep(5000l);
+		 //initialize tcp server helper        
+		Manager.startTCPServer(DEFAULT_PORT, null);
 		
 		Converter converter = new JsonConverter();
 		Map<String, String> configs = new HashMap<>();
@@ -182,8 +180,6 @@ public final class RxNettyTCPServer implements Runnable{
 			if(bytes != null){
 				SchemaAndValue value = converter.toConnectData("test", bytes);
 				System.out.println(value.value());
-				/*byte[] converted = converter.fromConnectData("test", ConnectSchema.STRING_SCHEMA, bytes);
-				System.out.println(new String(converted));*/
 			}
 		}
 		

@@ -26,6 +26,43 @@
 	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.6.3/jackson-databind-2.6.3.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-databind/2.6.3/jackson-databind-2.6.3-sources.jar"/>
 	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.6.0/jackson-annotations-2.6.0.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-annotations/2.6.0/jackson-annotations-2.6.0-sources.jar"/>
 	<classpathentry kind="var" path="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.6.3/jackson-core-2.6.3.jar" sourcepath="M2_REPO/com/fasterxml/jackson/core/jackson-core/2.6.3/jackson-core-2.6.3-sources.jar"/>
-	<classpathentry kind="var" path="M2_REPO"/>
+	<classpathentry exported="true" kind="var" path="M2_REPO"/>
+	<classpathentry kind="lib" path="/home/uranadh/.m2/repository/com/google/code/gson/gson/2.4/gson-2.4.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="com.google.code.gson"/>
+			<attribute name="maven.artifactId" value="gson"/>
+			<attribute name="maven.version" value="2.4"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/home/uranadh/.m2/repository/commons-io/commons-io/2.4/commons-io-2.4.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="commons-io"/>
+			<attribute name="maven.artifactId" value="commons-io"/>
+			<attribute name="maven.version" value="2.4"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/home/uranadh/.m2/repository/biz/paluch/redis/lettuce/4.2.2.Final/lettuce-4.2.2.Final-shaded.jar" sourcepath="/home/uranadh/.m2/repository/biz/paluch/redis/lettuce/4.2.2.Final/lettuce-4.2.2.Final-sources.jar"/>
+	<classpathentry kind="lib" path="/home/uranadh/.m2/repository/io/searchbox/jest/2.0.0/jest-2.0.0.jar" sourcepath="/home/uranadh/.m2/repository/io/searchbox/jest/2.0.0/jest-2.0.0-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="io.searchbox"/>
+			<attribute name="maven.artifactId" value="jest"/>
+			<attribute name="maven.version" value="2.0.0"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="/home/uranadh/.m2/repository/io/searchbox/jest-common/2.0.0/jest-common-2.0.0.jar" sourcepath="/home/uranadh/.m2/repository/io/searchbox/jest-common/2.0.0/jest-common-2.0.0-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="maven.groupId" value="io.searchbox"/>
+			<attribute name="maven.artifactId" value="jest-common"/>
+			<attribute name="maven.version" value="2.0.0"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

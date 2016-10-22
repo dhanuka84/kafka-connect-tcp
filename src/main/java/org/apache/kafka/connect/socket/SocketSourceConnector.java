@@ -17,10 +17,8 @@ package org.apache.kafka.connect.socket;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.utils.AppInfoParser;
@@ -41,17 +39,15 @@ public class SocketSourceConnector extends SourceConnector {
 
 
     private String port;
-    private String batchSize;
-    private String topic;
+    private int batchSize;
+    private String topicNames;
     private String name;
-    private String maxTasks;
-    private String schemaIgnore;
-    
-    private RxNettyTCPServer serverHelper;
+
 	private RxServer<ByteBuf, ByteBuf> nettyServer;
 	private Map<String, String> configProperties;
 	
-	public static Manager manager;
+	private static Manager manager;
+	private static BulkProcessor processor;
 
     /**
      * Get the version of this connector.
@@ -75,75 +71,38 @@ public class SocketSourceConnector extends SourceConnector {
         
         configProperties = map;
 
-        port = map.get(SocketConnectorConfig.CONNECTION_PORT_CONFIG);
+      //create configurations
+        SocketConnectorConfig config = new SocketConnectorConfig(map);
+        
+        port = config.getString(SocketConnectorConfig.CONNECTION_PORT_CONFIG);
         if (port == null || port.isEmpty())
             throw new ConnectException("Missing " + SocketConnectorConfig.CONNECTION_PORT_CONFIG + " config");
 
-        batchSize = map.get(SocketConnectorConfig.BATCH_SIZE_CONFIG);
-        int batchSizeValue = SocketConnectorConfig.BATCH_SIZE_DEFAULT;
-        if (batchSize == null || batchSize.isEmpty())
-            throw new ConnectException("Missing " + SocketConnectorConfig.BATCH_SIZE_CONFIG + " config");
-
-        topic = map.get(SocketConnectorConfig.TOPICS_CONFIG);
-        if (topic == null || topic.isEmpty())
-            throw new ConnectException("Missing " + SocketConnectorConfig.TOPICS_CONFIG + " config");
+        batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
         
-        String [] topics = topic.split(",");
-        for(String name : topics){
-        	Manager.TOPICS.add(name);
-        }
-        
-        name = map.get(SocketConnectorConfig.NAME_CONFIG);
+        name = config.getString(SocketConnectorConfig.NAME_CONFIG);
         if (name == null || name.isEmpty())
             throw new ConnectException("Missing " + SocketConnectorConfig.NAME_CONFIG + " config");
-        
-        maxTasks = map.get(SocketConnectorConfig.TASKS_MAX_CONFIG);
-        if (maxTasks == null || maxTasks.isEmpty())
-            throw new ConnectException("Missing " + SocketConnectorConfig.TASKS_MAX_CONFIG + " config");
-        
-        String maxInFlightRequests = map.get(SocketConnectorConfig.MAX_IN_FLIGHT_REQUESTS_CONFIG);
-        int maxInFlightRequestsValue = SocketConnectorConfig.MAX_IN_FLIGHT_REQUESTS_DEFAULT;
-        if (!(maxInFlightRequests == null || maxInFlightRequests.isEmpty())){
-        	maxInFlightRequestsValue = Integer.valueOf(maxInFlightRequests);
-        }
                
-        String lingerMs = map.get(SocketConnectorConfig.LINGER_MS_CONFIG);
-        long lingerMsValue = SocketConnectorConfig.LINGER_MS_DEFAULT;
-        if (!(lingerMs == null || lingerMs.isEmpty())){
-        	lingerMsValue = Long.valueOf(lingerMs);
-        }
+        long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
         
-        String maxRetry = map.get(SocketConnectorConfig.MAX_RETRY_CONFIG);
-        int maxRetryValue = SocketConnectorConfig.MAX_RETRY_DEFAULT;
-        if (!(maxRetry == null || maxRetry.isEmpty())){
-        	maxRetryValue = Integer.valueOf(maxRetry);
-        }
-        
-        String retryBackOffMs = map.get(SocketConnectorConfig.RETRY_BACKOFF_MS_CONFIG);
-        long retryBackOffMsValue = SocketConnectorConfig.RETRY_BACKOFF_MS_DEFAULT;
-        if (!(retryBackOffMs == null || retryBackOffMs.isEmpty())){
-        	retryBackOffMsValue = Long.valueOf(retryBackOffMs);
-        }
-        
-        //create configurations
-        SocketConnectorConfig config = new SocketConnectorConfig(map);
         //create bulk processor
-        BulkProcessor processor = new BulkProcessor(maxInFlightRequestsValue, batchSizeValue, lingerMsValue
-        		, maxRetryValue, retryBackOffMsValue); 
+        processor = new BulkProcessor(); 
         //initialize manager
-        manager = Manager.initialize(processor);
-        //initialize tcp server helper
-        serverHelper = new RxNettyTCPServer(Integer.parseInt(port.trim()));
+        manager = Manager.getManager();
+        Manager.dumpConfiguration(map);
+        Manager.addAllConfigToConnectMap(map);
+        //Re map configuration from local file-app-config.properties to kafka connect
+        Manager.reMapDomainConfigurations(map);
+        //Re map configuration on the fly
+        Manager.reMapDomainConfigurations(config, map, Manager.DOMAIN_TOPIC_MAP, Manager.ID_MAP);
+       
         
-        new Thread(serverHelper).start();
-        processor.start();
-        try {
-			Thread.sleep(5000);
-		} catch (InterruptedException ex) {
-			log.error("Error while starting TCP server thread" +ex.getMessage());
-		}
-        nettyServer = serverHelper.getNettyServer();
-        dumpConfiguration(map);
+        
+  
+        //initialize tcp server helper
+        nettyServer = Manager.startTCPServer(Integer.parseInt(port.trim()), processor);
+        
     }
 
     /**
@@ -178,21 +137,17 @@ public class SocketSourceConnector extends SourceConnector {
      */
     @Override
     public void stop() {
+    	log.info("stoping socket connector!");
     	if(nettyServer != null){
     		try {
 				nettyServer.shutdown();
-				Manager.getProcessor().stop();
+				processor.stop();
 			} catch (InterruptedException ex) {
 				log.error("Error while stoping TCP server thread" +ex.getMessage());
 			}
+    	}else{
+    		log.error(" Netty Server can't be null!");
     	}
-    }
-
-    private void dumpConfiguration(Map<String, String> map) {
-        log.info("Starting connector with configuration:");
-        for (Map.Entry entry : map.entrySet()) {
-            log.info("{}: {}", entry.getKey(), entry.getValue());
-        }
     }
 
 	@Override
