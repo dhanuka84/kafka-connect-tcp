@@ -70,38 +70,39 @@ public class SocketSourceConnector extends SourceConnector {
         log.info("Parsing configuration");
         
         configProperties = map;
+        try{
+        	//create configurations
+            SocketConnectorConfig config = new SocketConnectorConfig(map);
+            
+            port = config.getString(SocketConnectorConfig.CONNECTION_PORT_CONFIG);
+            if (port == null || port.isEmpty())
+                throw new ConnectException("Missing " + SocketConnectorConfig.CONNECTION_PORT_CONFIG + " config");
 
-      //create configurations
-        SocketConnectorConfig config = new SocketConnectorConfig(map);
-        
-        port = config.getString(SocketConnectorConfig.CONNECTION_PORT_CONFIG);
-        if (port == null || port.isEmpty())
-            throw new ConnectException("Missing " + SocketConnectorConfig.CONNECTION_PORT_CONFIG + " config");
-
-        batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
-        
-        name = config.getString(SocketConnectorConfig.NAME_CONFIG);
-        if (name == null || name.isEmpty())
-            throw new ConnectException("Missing " + SocketConnectorConfig.NAME_CONFIG + " config");
-               
-        long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
-        
-        //create bulk processor
-        processor = new BulkProcessor(); 
-        //initialize manager
-        manager = Manager.getManager();
-        Manager.dumpConfiguration(map);
-        Manager.addAllConfigToConnectMap(map);
-        //Re map configuration from local file-app-config.properties to kafka connect
-        Manager.reMapDomainConfigurations(map);
-        //Re map configuration on the fly
-        Manager.reMapDomainConfigurations(config, map, Manager.DOMAIN_TOPIC_MAP, Manager.ID_MAP);
-       
-        
-        
-  
-        //initialize tcp server helper
-        nettyServer = Manager.startTCPServer(Integer.parseInt(port.trim()), processor);
+            batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
+            
+            name = config.getString(SocketConnectorConfig.NAME_CONFIG);
+            if (name == null || name.isEmpty())
+                throw new ConnectException("Missing " + SocketConnectorConfig.NAME_CONFIG + " config");
+                   
+            long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
+            
+            //create bulk processor
+            processor = new BulkProcessor(); 
+            //initialize manager
+            manager = Manager.getManager();
+            Manager.dumpConfiguration(map);
+            Manager.addAllConfigToConnectMap(map);
+            //Re map configuration from local file-app-config.properties to kafka connect
+            Manager.reMapDomainConfigurations(map);
+            //Re map configuration on the fly
+            Manager.reMapDomainConfigurations(config, map, Manager.DOMAIN_TOPIC_MAP, Manager.CONNECTOR_RELATED_JSON_CONFIG);
+   
+            //initialize tcp server helper
+            nettyServer = Manager.startTCPServer(Integer.parseInt(port.trim()), processor);
+        }catch(Exception ex){
+        	log.error(" Error occurred while starting connector ");
+        }
+      
         
     }
 

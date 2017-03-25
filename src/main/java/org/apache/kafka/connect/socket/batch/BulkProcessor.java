@@ -102,7 +102,7 @@ public class BulkProcessor {
 			
 			//md5 hash
 			final JsonObject jsonObj = Manager.getJsonObject(jsonPayload);
-			String eventsStateTriggerId = Manager.generateKeysUsingFields(jsonObj, EVENTS_STATE_TRIGGER_ID,idMap);
+			/*String eventsStateTriggerId = Manager.generateKeysUsingFields(jsonObj, EVENTS_STATE_TRIGGER_ID,idMap);
 			String objectId = Manager.generateKeysUsingFields(jsonObj, EVENTS_OBJECTID,idMap);
 			String md5StateTrigger = Manager.getMD5HexValue(eventsStateTriggerId);
 			String md5ObjectId = Manager.getMD5HexValue(objectId);
@@ -115,18 +115,12 @@ public class BulkProcessor {
 			
 			//create partition key
 			String eventPartitionKey = Manager.generateKeysUsingFields(jsonObj, EVENTS_PARTITION_KEY,idMap);
-			String eventPartitionKeyMD5 = Manager.getMD5HexValue(eventPartitionKey);
+			String eventPartitionKeyMD5 = Manager.getMD5HexValue(eventPartitionKey);*/
 			
-			String topic = null;
+			
 			String domain = jsonObj.get(DOMAIN_TAG_NAME).getAsString();
 			String msgType = jsonObj.get(MSG_TYPE_TAG_NAME).getAsString();
-			if(StringUtil.isNullOrEmpty(domain) || StringUtil.isNullOrEmpty(msgType)){
-				topic = errorTopic;
-				log.error("Domain or msgType Tag is missing");
-			}else{
-				//TODO need to find msg type
-				topic = domainTopicMap.get(msgType.toLowerCase()+"_"+domain.toLowerCase());
-			}
+			
 			
 			if(MessageType.EVENT.toString().equalsIgnoreCase(msgType)){
 				//TODO cmdb cache access
@@ -135,10 +129,18 @@ public class BulkProcessor {
 				String value = manager.getValueBykey("");
 			}
 			
+			String topic = null;
+			if(StringUtil.isNullOrEmpty(domain) || StringUtil.isNullOrEmpty(msgType)){
+				topic = errorTopic;
+				log.error("Domain or msgType Tag is missing");
+			}else{
+				//TODO need to find msg type
+				topic = domainTopicMap.get(msgType.toLowerCase()+"_"+domain.toLowerCase());
+			}
 			
-
-			Map<String, String> partition = Collections.singletonMap(PARTITION_KEY,eventPartitionKeyMD5);
-			record = new SourceRecord(partition, null, topic,ConnectSchema.STRING_SCHEMA,eventPartitionKeyMD5,
+			double random = Math.random();
+			Map<String, String> partition = Collections.singletonMap(PARTITION_KEY,random+topic);
+			record = new SourceRecord(partition, null, topic,ConnectSchema.STRING_SCHEMA,random+topic,
 					ConnectSchema.STRING_SCHEMA, jsonObj.toString());
 
 		} catch (Throwable ex) {

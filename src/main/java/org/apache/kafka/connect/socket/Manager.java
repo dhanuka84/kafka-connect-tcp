@@ -36,12 +36,13 @@ public final class Manager {
     public static final ConcurrentLinkedQueue<byte[]> MESSAGES = new ConcurrentLinkedQueue<>();
     public final static Set<String> TOPICS = new HashSet<String>();
     /** All the ID/Key related mappings and domain names***/
-    public final static Map<String,Set<String>> ID_MAP = new HashMap<>(); 
+    public final static Map<String,Set<String>> CONNECTOR_RELATED_JSON_CONFIG = new HashMap<>(); 
     /** Domain and Topic mappings- domain name will be the key while topic will be the value**/
     public final static Map<String,String> DOMAIN_TOPIC_MAP = new HashMap<>();
     /**application level configuration which reside in property file**/
     public final static Properties APP_CONFIGS = new Properties();
-    private static JsonElement JSON_ELEMENT;
+    private static JsonElement DOMAIN_CONFIG_JSON_ELEMENT;
+    private static JsonElement 	QUERY_JSON_ELEMENT;
     
     private static final ThreadLocal<MessageDigest> MD_TL = new ThreadLocal<MessageDigest>() {
     	protected MessageDigest initialValue() {
@@ -59,9 +60,10 @@ public final class Manager {
 
 	private Manager() {
 		super();
-		JSON_ELEMENT = FileHandler.getJSONElement(SocketConnectorConstants.DOMAIN_CONFIG_FILE);
+		DOMAIN_CONFIG_JSON_ELEMENT = FileHandler.getJSONElement(SocketConnectorConstants.DOMAIN_CONFIG_FILE);
+		QUERY_JSON_ELEMENT = FileHandler.getJSONElement(SocketConnectorConstants.QUERY_CONFIG_FILE);
 		createAppConfigs();
-		creatIdMapping(JSON_ELEMENT);
+		creatJSONConfigMapping(DOMAIN_CONFIG_JSON_ELEMENT);
 	}
 	
 	public static Manager getManager(){
@@ -116,19 +118,43 @@ public final class Manager {
 		}
 	}
 	
-	public static void creatIdMapping(final JsonElement element){
+	public static void creatJSONConfigMapping(final JsonElement element){
 		Gson gson = new Gson();
         if ( element.isJsonObject()) {
             JsonObject jsonConfig =  element.getAsJsonObject();
             String msgIdString = APP_CONFIGS.getProperty(SocketConnectorConstants.ALL_CONFIG_NAMES);
-            String[] msgIds = msgIdString.split(",");
-            for(String msgId : msgIds){
+            String[] configKeys = msgIdString.split(",");
+            for(String key : configKeys){
             	Set<String> values = new HashSet<>();
-            	String jsonArry = jsonConfig.get(msgId).getAsString();
+            	String jsonArry = jsonConfig.get(key).getAsString();
             	
             	values.addAll(Arrays.asList(jsonArry.split(",")));
-            	ID_MAP.put(msgId, values);
-            	if (msgId.equals(SocketConnectorConstants.DOMAIN_TOPIC_MAPPING)) {
+            	CONNECTOR_RELATED_JSON_CONFIG.put(key, values);
+            	if (key.equals(SocketConnectorConstants.DOMAIN_TOPIC_MAPPING)) {
+					Type stringStringMap = new TypeToken<Map<String, String>>() {}.getType();
+					Map<String, String> domainTopic = gson.fromJson("{"+jsonArry+"}", stringStringMap);
+					DOMAIN_TOPIC_MAP.putAll(domainTopic);
+
+				} 
+            }
+     
+        }
+        
+	}
+	
+	public static void creatJSONQueryMapping(final JsonElement element){
+		Gson gson = new Gson();
+        if ( element.isJsonObject()) {
+            JsonObject jsonConfig =  element.getAsJsonObject();
+            String msgIdString = APP_CONFIGS.getProperty(SocketConnectorConstants.ALL_CONFIG_NAMES);
+            String[] configKeys = msgIdString.split(",");
+            for(String key : configKeys){
+            	Set<String> values = new HashSet<>();
+            	String jsonArry = jsonConfig.get(key).getAsString();
+            	
+            	values.addAll(Arrays.asList(jsonArry.split(",")));
+            	CONNECTOR_RELATED_JSON_CONFIG.put(key, values);
+            	if (key.equals(SocketConnectorConstants.DOMAIN_TOPIC_MAPPING)) {
 					Type stringStringMap = new TypeToken<Map<String, String>>() {}.getType();
 					Map<String, String> domainTopic = gson.fromJson("{"+jsonArry+"}", stringStringMap);
 					DOMAIN_TOPIC_MAP.putAll(domainTopic);
@@ -141,7 +167,7 @@ public final class Manager {
 	}
 	
 	public static void reMapDomainConfigurations(Map<String,String> taskMap){
-		Set<Entry<String, Set<String>>> enrties = ID_MAP.entrySet();
+		Set<Entry<String, Set<String>>> enrties = CONNECTOR_RELATED_JSON_CONFIG.entrySet();
         for(Entry<String, Set<String>> entry : enrties){
         	Set<String> value = entry.getValue();
         	String key = entry.getKey();
@@ -157,6 +183,26 @@ public final class Manager {
         
 	}
 	
+	/**
+	 * 
+{"connector.class":"org.apache.kafka.connect.socket.SocketSourceConnector",
+ "tasks.max":"4", "topics":"socket-test",
+ "schema.name":"socketschema",
+ "type.name":"kafka-connect",
+ "schema.ignore":"true",
+ "tcp.port":"12345", 
+ "batch.size":"2",
+"events_stateTriggerId":"monitoredCIName,producer,stateTriggerId,locationCode",
+"events_objectId":"monitoredCIName,producer,stateTriggerId,locationCode,raisedTimestamp",
+"metrics_id":"domain",
+"metrics_domains":"SUM,RUM,HEALTH,TIK",
+"events_domains":"SUM,RUM,APM,IPM,NPM,TIK",
+"metrics_partition_key":"monitoredCIName,producer,locationCode",
+"events_partition_key":"monitoredCIName,producer,locationCode",
+"domain_topic_mapping":"event_sum:event_topic,metric_rum:metric_topic",
+"error_topic":"error_topic"
+}
+	 * **/
 	public static void reMapDomainConfigurations(final SocketConnectorConfig config, Map<String,String> taskMap,
 			Map<String, String> domainTopicMap, Map<String,Set<String>> idMap){
 		String msgIdString = taskMap.get(SocketConnectorConstants.ALL_CONFIG_NAMES);
@@ -178,6 +224,7 @@ public final class Manager {
 	
 	
 	public static void parseMapConfig(final List<String> values, final Map<String,String> map) {
+		//domain_topic_mapping:event_sum:event_topic,metric_rum:metric_topic
 		for (String value : values) {
 			String[] parts = value.split(":");
 			String domainName = parts[0];

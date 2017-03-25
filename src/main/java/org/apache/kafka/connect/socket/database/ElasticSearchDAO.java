@@ -2,6 +2,11 @@ package org.apache.kafka.connect.socket.database;
 
 import org.apache.kafka.connect.socket.database.AbstractDBManager.DBType;
 
+import com.google.gson.JsonObject;
+
+import io.searchbox.core.Search;
+import io.searchbox.core.SearchResult;
+
 public class ElasticSearchDAO extends AbstractDAO{
 
 	private ElasticSearchDBManager manager = (ElasticSearchDBManager) AbstractDBManager.getDBManager(DBType.ELASTICSEARCH);
@@ -13,6 +18,15 @@ public class ElasticSearchDAO extends AbstractDAO{
 	
 	public void updateIndexData(){
 		//manager.getClient().execute(clientRequest);
+	}
+	
+	public JsonObject getEventByStateTriggerId(String index, String type, String query) throws Exception{
+		Search.Builder searchBuilder = new Search.Builder(query).addIndex(index).addType(type);
+		SearchResult result = manager.getClient().execute(searchBuilder.build());
+		if(result == null){
+			return null;
+		}
+		return result.getJsonObject();
 	}
 	
 	/* 

@@ -59,7 +59,7 @@ public class SocketSourceTask extends SourceTask {
 		Manager.dumpConfiguration(map);
 		Manager.reMapDomainConfigurations(config, map, DOMAIN_TOPIC_MAP, ID_MAP);
 		processor = new BulkProcessor();
-		CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS).start(map);
+		//CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS).start(map);
 		DBType[] dbTypes = DBType.values();
 		for(DBType type : dbTypes){
 			AbstractDBManager.getDBManager(type).start(map);
@@ -125,8 +125,8 @@ public class SocketSourceTask extends SourceTask {
      */
     @Override
     public void stop() {
-    	CMDBManager manager = CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS);
-		manager.stop();
+    	/*CMDBManager manager = CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS);
+		manager.stop();*/
 		DBType[] dbTypes = DBType.values();
 		for(DBType type : dbTypes){
 			AbstractDBManager.getDBManager(type).stop();

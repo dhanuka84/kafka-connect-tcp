@@ -1,0 +1,12 @@
+{
+"queries":[
+{
+  "eventByStateTriggerId": {
+    "terms": {
+      "_id": [] 
+    }
+  }
+}
+
+]
+}
