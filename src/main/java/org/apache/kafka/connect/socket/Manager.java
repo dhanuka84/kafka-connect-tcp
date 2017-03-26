@@ -91,7 +91,7 @@ public final class Manager {
 		return payload.toString();
 	}
 	
-	public static RxServer<ByteBuf, ByteBuf> startTCPServer(final int port , final BulkProcessor processor){
+	public static RxServer<byte[], byte[]> startTCPServer(final int port , final BulkProcessor processor){
 		//initialize tcp server helper
 		RxNettyTCPServer serverHelper = new RxNettyTCPServer(port);
         new Thread(serverHelper).start();
@@ -104,7 +104,7 @@ public final class Manager {
 		} catch (InterruptedException ex) {
 			log.error("Error while starting TCP server thread" +ex.getMessage());
 		}
-        RxServer<ByteBuf, ByteBuf> nettyServer = serverHelper.getNettyServer();
+        RxServer<byte[], byte[]> nettyServer = serverHelper.getNettyServer();
         return nettyServer;
 	}
 	

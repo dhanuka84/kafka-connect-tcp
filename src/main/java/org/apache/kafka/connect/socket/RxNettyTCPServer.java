@@ -6,17 +6,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.kafka.connect.data.ConnectSchema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.storage.Converter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.FixedRecvByteBufAllocator;
+import io.netty.channel.WriteBufferWaterMark;
 import io.reactivex.netty.RxNetty;
 import io.reactivex.netty.channel.ConnectionHandler;
 import io.reactivex.netty.channel.ObservableConnection;
+import io.reactivex.netty.pipeline.PipelineConfigurator;
+import io.reactivex.netty.pipeline.PipelineConfigurators;
 import io.reactivex.netty.server.RxServer;
 import rx.Observable;
 import rx.functions.Action0;
@@ -27,7 +31,7 @@ public final class RxNettyTCPServer implements Runnable{
 	
 	private static final Logger LOG = LoggerFactory.getLogger(RxNettyTCPServer.class);
 
-	private RxServer<ByteBuf, ByteBuf> nettyServer;
+	private RxServer<byte[], byte[]> nettyServer;
 
 	static final int DEFAULT_PORT = SocketConnectorConfig.CONNECTION_PORT_DEFAULT;
 
@@ -37,15 +41,28 @@ public final class RxNettyTCPServer implements Runnable{
 	public RxNettyTCPServer(int port) {
 		this.port = port;
 	}
+	
+	/* private class MyStringServerFactory implements ChannelPipelineFactory{
+		   public ChannelPipeline getPipeline() throws Exception {
+		     ChannelPipeline p = Channels.pipeline();
+		     // Decoders
+		     p.addLast("frameDecoder", new DelimiterBasedFrameDecoder(Delimiters.lineDelimiter()));
+		     p.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8));
+		     // Encoder
+		     p.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8));
+		     return p; 
+		   } 
+		}*/
 
-	public RxServer<ByteBuf, ByteBuf> createServer() {
+	public RxServer<byte[], byte[]> createServer() {
 		//boolean debugEnabled = LOG.isDebugEnabled();
 		boolean debugEnabled = true;
-		
-		RxServer<ByteBuf, ByteBuf> server = RxNetty
-				.newTcpServerBuilder(port, new ConnectionHandler<ByteBuf, ByteBuf>() {
+
+		PipelineConfigurator<byte[], byte[]>  config = PipelineConfigurators.byteArrayConfigurator();
+		RxServer<byte[], byte[]> server = RxNetty
+				.newTcpServerBuilder(port, new ConnectionHandler<byte[], byte[]>() {
 					@Override
-					public Observable<Void> handle(final ObservableConnection<ByteBuf, ByteBuf> connection) {
+					public Observable<Void> handle(final ObservableConnection<byte[], byte[]> connection) {
 
 						final AtomicInteger fullLenth = new AtomicInteger();
 						final AtomicInteger count = new AtomicInteger();
@@ -53,7 +70,7 @@ public final class RxNettyTCPServer implements Runnable{
 						ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
 
 						if(debugEnabled){
-							LOG.debug(" ============================  New client connection established. " 
+							LOG.info(" ============================  New client connection established. " 
 									+ Thread.currentThread().getId()+" ==============================");
 						}
 						
@@ -61,21 +78,21 @@ public final class RxNettyTCPServer implements Runnable{
 							LOG.error("============================   connection closed ============================  " );
 						}
 						
-						Observable<ByteBuf> input = connection.getInput();
-						Observable<Void> response = input.flatMap(new Func1<ByteBuf, Observable<Void>>() {
+						Observable<byte[]> input = connection.getInput();
+						Observable<Void> response = input.flatMap(new Func1<byte[], Observable<Void>>() {
 
 							@Override
-							public Observable<Void> call(final ByteBuf originalBuff) {
-								
-								ByteBuf buff = originalBuff.duplicate();
+							public Observable<Void> call(final byte[] originalBuff) {
+			
+								/*byte[] buff = originalBuff.duplicate();*/
 								count.incrementAndGet();
-								if(debugEnabled){
-									LOG.debug(" ============================ " 
+								/*if(debugEnabled){
+									LOG.info(" ============================ " 
 											+ " Max Capacity: " + buff.maxCapacity()+" ==============================");
-									LOG.debug(" ============================   Capacity: "+ buff.capacity()+" ==============================");
-								}
+									LOG.info(" ============================   Capacity: "+ buff.capacity()+" ==============================");
+								}*/
 												
-								byte[] bytes;
+								/*byte[] bytes;
 								int offset;
 								int length = buff.readableBytes();
 
@@ -86,16 +103,22 @@ public final class RxNettyTCPServer implements Runnable{
 									bytes = new byte[length];
 									buff.getBytes(buff.readerIndex(), bytes);
 									offset = 0;
+								}*/
+								
+								byte[] bytes = originalBuff;
+								if(bytes == null){
+									bytes = new byte[0];
 								}
+								int length = bytes.length;
 								
 								fullLenth.addAndGet(length);
 								
-								if(debugEnabled){
-									LOG.debug(" ============================ " + "onNext: " + " readable : " + buff.isReadable()
+								/*if(debugEnabled){
+									LOG.info(" ============================ " + "onNext: " + " readable : " + buff.isReadable()
 											+ "  threadId" + Thread.currentThread().getId()+" ==============================");
-									LOG.debug(" ============================   Full Length: "+ fullLenth+ " Lenght: "+ bytes.length+" ==============================");
+									LOG.info(" ============================   Full Length: "+ fullLenth+ " Lenght: "+ bytes.length+" ==============================");
 						
-								}
+								}*/
 								
 								if(fullLenth.get() == (Integer.MAX_VALUE - 5000)){
 									LOG.info(" ============================ " + (Integer.MAX_VALUE - 5000) + " Number of messages reached to uper limit "+ "==============================");
@@ -115,13 +138,13 @@ public final class RxNettyTCPServer implements Runnable{
 									result = Observable.empty();
 								} else {
 									if(debugEnabled){
-										LOG.debug(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
+										LOG.info(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
 									}
 									result = Observable.empty();
 								}
 								
 								if(debugEnabled){
-									LOG.debug(" ============================ " + "Message Queue size : " + Manager.MESSAGES.size()+" ==============================");
+									LOG.info(" ============================ " + "Message Queue size : " + Manager.MESSAGES.size()+" ==============================");
 								}
 								
 								return result;
@@ -137,15 +160,16 @@ public final class RxNettyTCPServer implements Runnable{
 									byte[] wholeMsg = outputStream.toByteArray();
 									Manager.MESSAGES.add(wholeMsg);
 									//System.out.println(new String(wholeMsg));
+									//System.out.println(new String(wholeMsg));
 									//TODO write after complete
 									Observable<Void> result = null;
 									//connection.writeBytesAndFlush("OK\r\n".getBytes());
-									if(!connection.isCloseIssued()){
+									/*if(!connection.isCloseIssued()){
 										connection.close(true);
-									}
+									}*/
 									
 									if(debugEnabled){
-										LOG.debug(" ============================ " + "Messages count : " + count+" ==============================");
+										LOG.info(" ============================ " + "Messages count : " + count+" ==============================");
 									}
 								} finally{
 									//count.set(0);
@@ -162,6 +186,16 @@ public final class RxNettyTCPServer implements Runnable{
 						return response;
 					}
 				})
+				.appendPipelineConfigurator(config)
+				.channelOption(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(1*1024*1024))
+				//.channelOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
+				.channelOption(ChannelOption.SO_KEEPALIVE, true)
+				.channelOption(ChannelOption.SO_SNDBUF, 1*1024*1024)
+				.channelOption(ChannelOption.SO_RCVBUF, 1*1024*1024)
+				.channelOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(32*1024*1024, 100*1024*1024))
+				
+				//.channelOption(ChannelOption.TCP_NODELAY,true)
+				
 				
 				.build();
 		return server;
@@ -200,7 +234,7 @@ public final class RxNettyTCPServer implements Runnable{
         }
     }
     
-    public RxServer<ByteBuf, ByteBuf> getNettyServer(){
+    public RxServer<byte[], byte[]> getNettyServer(){
     	return nettyServer;
     }
 

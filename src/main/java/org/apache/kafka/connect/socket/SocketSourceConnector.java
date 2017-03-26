@@ -43,7 +43,7 @@ public class SocketSourceConnector extends SourceConnector {
     private String topicNames;
     private String name;
 
-	private RxServer<ByteBuf, ByteBuf> nettyServer;
+	private RxServer<byte[], byte[]> nettyServer;
 	private Map<String, String> configProperties;
 	
 	private static Manager manager;
