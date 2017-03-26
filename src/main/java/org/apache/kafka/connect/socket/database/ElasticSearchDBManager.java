@@ -15,15 +15,15 @@ public class ElasticSearchDBManager extends AbstractDBManager{
 
 	@Override
 	public void start(Map<String, String> config) {
-		String address = config.get(SocketConnectorConfig.CONNECTION_URL_CONFIG);
+		/*String address = config.get(SocketConnectorConfig.CONNECTION_URL_CONFIG);
 		factory.setHttpClientConfig(new HttpClientConfig.Builder(address).multiThreaded(true).build());
-		this.client = factory.getObject();
+		this.client = factory.getObject();*/
 		
 	}
 
 	@Override
 	public void stop() {	
-		client.shutdownClient();
+		//client.shutdownClient();
 	}
 	
 	public static AbstractDBManager get(){

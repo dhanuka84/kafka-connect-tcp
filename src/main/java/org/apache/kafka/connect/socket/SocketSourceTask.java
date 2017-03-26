@@ -53,18 +53,23 @@ public class SocketSourceTask extends SourceTask {
      */
 	@Override
 	public void start(Map<String, String> map) {
-		// create configurations
-		log.info(" Socket task starting ");
-		config = new SocketConnectorConfig(map);
-		Manager.dumpConfiguration(map);
-		Manager.reMapDomainConfigurations(config, map, DOMAIN_TOPIC_MAP, ID_MAP);
-		processor = new BulkProcessor();
-		//CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS).start(map);
-		DBType[] dbTypes = DBType.values();
-		for(DBType type : dbTypes){
-			AbstractDBManager.getDBManager(type).start(map);
+		try{
+			// create configurations
+			log.info(" Socket task starting ");
+			config = new SocketConnectorConfig(map);
+			Manager.dumpConfiguration(map);
+			Manager.reMapDomainConfigurations(config, map, DOMAIN_TOPIC_MAP, ID_MAP);
+			processor = new BulkProcessor();
+			//CMDBManager.getCMDBManager(CMDBManager.CMDBType.REDIS).start(map);
+			DBType[] dbTypes = DBType.values();
+			for(DBType type : dbTypes){
+				AbstractDBManager.getDBManager(type).start(map);
+			}
+			log.info(" Socket task started ");
+		}catch(Exception ex){
+			log.error(" Error occurred while starting task ");
 		}
-		log.info(" Socket task started ");
+		
 
 	}
 
@@ -79,9 +84,10 @@ public class SocketSourceTask extends SourceTask {
     public List<SourceRecord> poll() throws InterruptedException {
     	
 		List<SourceRecord> records = null;
-		long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
-		int batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
+		
 		try {
+			long lingerMs = config.getLong(SocketConnectorConfig.LINGER_MS_CONFIG);
+			int batchSize = config.getInt(SocketConnectorConfig.BATCH_SIZE_CONFIG);
 			long now = System.currentTimeMillis();
 			RecordBatch batch = new RecordBatch(now);
 			int count = 0;

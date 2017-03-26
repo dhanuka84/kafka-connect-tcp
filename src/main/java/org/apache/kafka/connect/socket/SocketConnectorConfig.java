@@ -42,9 +42,9 @@ public class SocketConnectorConfig extends AbstractConfig {
                   " or use \"FileStreamSink\" or \"FileStreamSinkConnector\" to make the configuration a bit shorter";
   private static final String CONNECTOR_CLASS_DISPLAY = "Connector class";
   
-  public static final String CONNECTION_URL_CONFIG = "connection.url";
+  /*public static final String CONNECTION_URL_CONFIG = "connection.url";
   private static final String CONNECTION_URL_DOC = "The URL to connect to Elasticsearch.";
-  private static final String CONNECTION_URL_DISPLAY = "Connection URL";
+  private static final String CONNECTION_URL_DISPLAY = "Connection URL";*/
 
   
   public static final String ERROR_TOPIC_CONFIG = "error_topic";
@@ -170,7 +170,7 @@ public class SocketConnectorConfig extends AbstractConfig {
 
   public static ConfigDef baseConfigDef() {
     return new ConfigDef()
-    	.define(CONNECTION_URL_CONFIG, Type.STRING, Importance.HIGH, CONNECTION_URL_DOC, TCPSERVER_GROUP, 1, Width.LONG,CONNECTION_URL_DISPLAY)
+    	//.define(CONNECTION_URL_CONFIG, Type.STRING, Importance.HIGH, CONNECTION_URL_DOC, TCPSERVER_GROUP, 1, Width.LONG,CONNECTION_URL_DISPLAY)
     	.define(NAME_CONFIG, Type.STRING, Importance.HIGH, NAME_DOC, COMMON_GROUP, 1, Width.MEDIUM, NAME_DISPLAY)
         .define(CONNECTOR_CLASS_CONFIG, Type.STRING, Importance.HIGH, CONNECTOR_CLASS_DOC, COMMON_GROUP, 2, Width.LONG, CONNECTOR_CLASS_DISPLAY)
     	.define(CONNECTION_PORT_CONFIG, Type.STRING, Importance.HIGH, CONNECTION_PORT_DOC, TCPSERVER_GROUP, 1, Width.LONG, CONNECTION_PORT_DISPLAY)	
