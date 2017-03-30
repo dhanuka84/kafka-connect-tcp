@@ -20,7 +20,7 @@ import ch.qos.logback.classic.AsyncAppender;
 
 
 // always a good idea to add an on console status listener
-statusListener(OnConsoleStatusListener)
+//statusListener(OnConsoleStatusListener)
 
 
 // define the USER_HOME variable setting its value 
@@ -103,7 +103,7 @@ appender("FILE", RollingFileAppender) {
     totalSizeCap = FileSize.valueOf(totalSizeCapValue);
   }
   encoder(PatternLayoutEncoder) {
-    pattern = "%level %logger - %msg%n"
+    pattern = "%date [%thread] %-5level %ex{full} %logger - %msg%n"
   }
 }
 
@@ -117,8 +117,8 @@ appender("ASYNC", AsyncAppender) {
 //root(DEBUG, ["ASYNC"])
 root(INFO, ["ASYNC"])
 
-logger("org.apache.kafka.connect.socket", DEBUG,["FILE"])
-logger("io.netty.handler.logging.LoggingHandler", INFO,["FILE"])
+logger("com.pearson.gme.mydashboard", DEBUG,["FILE"],false)
+//logger("io.netty.handler.logging.LoggingHandler", INFO,["FILE"])
 
 //Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
 //root.setLevel(Level.INFO);

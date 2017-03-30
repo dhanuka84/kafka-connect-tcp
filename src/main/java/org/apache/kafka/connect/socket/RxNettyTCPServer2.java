@@ -1,19 +1,11 @@
 package org.apache.kafka.connect.socket;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Callable;
+import java.util.concurrent.FutureTask;
 
-import org.apache.kafka.connect.data.SchemaAndValue;
-import org.apache.kafka.connect.json.JsonConverter;
-import org.apache.kafka.connect.storage.Converter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.WriteBufferWaterMark;
@@ -24,13 +16,12 @@ import io.reactivex.netty.pipeline.PipelineConfigurator;
 import io.reactivex.netty.pipeline.PipelineConfigurators;
 import io.reactivex.netty.server.RxServer;
 import rx.Observable;
-import rx.functions.Action0;
+import rx.Observer;
 import rx.functions.Func1;
-import rx.schedulers.Schedulers;
 
-public final class RxNettyTCPServer implements Runnable{
+public final class RxNettyTCPServer2 implements Runnable{
 	
-	private static final Logger LOG = LoggerFactory.getLogger(RxNettyTCPServer.class);
+	private static final Logger LOG = LoggerFactory.getLogger(RxNettyTCPServer2.class);
 
 	private RxServer<byte[], byte[]> nettyServer;
 
@@ -39,22 +30,32 @@ public final class RxNettyTCPServer implements Runnable{
 	private final int port;
 	
 
-	public RxNettyTCPServer(int port) {
+	public RxNettyTCPServer2(int port) {
 		this.port = port;
+		nettyServer = this.createServer();
 	}
 	
-	/* private class MyStringServerFactory implements ChannelPipelineFactory{
-		   public ChannelPipeline getPipeline() throws Exception {
-		     ChannelPipeline p = Channels.pipeline();
-		     // Decoders
-		     p.addLast("frameDecoder", new DelimiterBasedFrameDecoder(Delimiters.lineDelimiter()));
-		     p.addLast("stringDecoder", new StringDecoder(CharsetUtil.UTF_8));
-		     // Encoder
-		     p.addLast("stringEncoder", new StringEncoder(CharsetUtil.UTF_8));
-		     return p; 
-		   } 
-		}*/
+	private final FutureConnection futureConnection = new FutureConnection();
+	private final FutureTask<ObservableConnection<byte[], byte[]>> future = new FutureTask<>(futureConnection);
+	
+	private static class FutureConnection implements Callable<ObservableConnection<byte[],byte[]>> {
 
+		private ObservableConnection<byte[], byte[]> connection;
+		
+		public void setConnection(final ObservableConnection<byte[], byte[]> connection) {
+			if (connection == null)
+			      throw new IllegalArgumentException();
+			if (this.connection != null)
+				//throw new IllegalStateException("Immutable variable");
+			this.connection = connection;
+		}
+
+		@Override public ObservableConnection<byte[], byte[]> call() throws Exception {
+			return connection;
+		}
+	}
+	
+	
 	public RxServer<byte[], byte[]> createServer() {
 		//boolean debugEnabled = LOG.isDebugEnabled();
 		boolean debugEnabled = true;
@@ -64,7 +65,19 @@ public final class RxNettyTCPServer implements Runnable{
 				.newTcpServerBuilder(port, new ConnectionHandler<byte[], byte[]>() {
 					@Override
 					public Observable<Void> handle(final ObservableConnection<byte[], byte[]> connection) {
+						
+						LOG.info("connect client {}", connection.getChannel()
+								.remoteAddress());
+						
+						
 
+					/*	futureConnection.setConnection(connection);
+						future.run();*/
+						
+						//Observable.from(connection)
+
+						return Observable.never();
+/*
 						final AtomicInteger fullLenth = new AtomicInteger();
 						final AtomicInteger count = new AtomicInteger();
 						
@@ -80,25 +93,20 @@ public final class RxNettyTCPServer implements Runnable{
 						}
 						
 						Observable<byte[]> input = connection.getInput();
-						input.asObservable();
-						Observable<Void> response = input.flatMap(new Func1<byte[], Observable<Void>>() {
+						Observable<Void> response = 
+						
+								*/
+							/*input.flatMap(new Func1<byte[], Observable<Void>>() {
 
 							@Override
 							public Observable<Void> call(final byte[] originalBuff) {
-			
-								
-								count.incrementAndGet();
-							
-								
+								count.incrementAndGet();							
 								byte[] bytes = originalBuff;
 								if(bytes == null){
 									bytes = new byte[0];
 								}
-								int length = bytes.length;
-								
+								int length = bytes.length;								
 								fullLenth.addAndGet(length);
-								
-								
 								
 								if(fullLenth.get() == (Integer.MAX_VALUE - 5000)){
 									LOG.info(" ============================ " + (Integer.MAX_VALUE - 5000) + " Number of messages reached to uper limit "+ "==============================");
@@ -113,9 +121,9 @@ public final class RxNettyTCPServer implements Runnable{
 									} catch (IOException e) {
 										LOG.error(" Error while storing byte array ");
 									}
-									
-									result = connection.writeBytesAndFlush("OK\r\n".getBytes());
-									
+									connection.writeBytes(bytes);
+									//result = connection.writeBytesAndFlush("OK\r\n".getBytes());
+									result = Observable.empty();
 								} else {
 									if(debugEnabled){
 										LOG.info(" ============================ " + "Msg Empty: " + bytes.length+" ==============================");
@@ -131,20 +139,27 @@ public final class RxNettyTCPServer implements Runnable{
 								
 								
 							}
-						})
-						 //.subscribeOn(Schedulers.io())
+						})*//*.subscribeOn(Schedulers.io())
 						  .doOnCompleted(new Action0() {
 							@Override
 							public void call() {
 								try {		
 									System.out.println("inside complete");
 									byte[] wholeMsg = outputStream.toByteArray();
-									Manager.MESSAGES.add(wholeMsg);
-								
-									if(debugEnabled){
-										LOG.info(" ============================ " + "Messages count : " + count+" ==============================");
-										LOG.info(" ============================ " + "Message : " + new String(wholeMsg)+" ==============================");
+									//Manager.MESSAGES.add(wholeMsg);
+									//System.out.println(new String(wholeMsg));
+									//System.out.println(new String(wholeMsg));
+									//TODO write after complete
+									Observable<Void> result = null;
+									//connection.writeBytesAndFlush("OK\r\n".getBytes());
+									if(!connection.isCloseIssued()){
+										connection.close(true);
 									}
+									String msg = new String(wholeMsg);
+									if(debugEnabled){
+										LOG.info(" ============================ " + "Messages count : " + msg+" ==============================");
+									}
+									System.out.println(msg);
 								} finally{
 									//count.set(0);
 									fullLenth.set(0);
@@ -157,7 +172,7 @@ public final class RxNettyTCPServer implements Runnable{
 							}
 						});
 
-						return response;
+						return response;*/
 					}
 				})
 				.appendPipelineConfigurator(config)
@@ -174,12 +189,72 @@ public final class RxNettyTCPServer implements Runnable{
 				.build();
 		return server;
 	}
+	
+	private RxNettyTCPServer2 receiveMessages() {	
+		Observable.from(future)
+				.flatMap(new Func1<ObservableConnection<byte[], byte[]>, Observable<byte[]>>() {
+
+					@Override public Observable<byte[]> call(
+							ObservableConnection<byte[], byte[]> connection) {
+
+						return connection.getInput();
+					}
+				})
+				.subscribe(new Observer<byte[]>() {
+
+					@Override public void onNext(byte[] s) {
+						LOG.info("received : \"{}\"", new String(s));
+//						sendMessage(s);
+					}
+
+					@Override public void onError(Throwable e) {
+						LOG.error(e.getMessage(), e);
+					}
+
+					@Override public void onCompleted() {
+						LOG.info("received onComplete");
+						
+					}
+				});
+
+		return this;
+	}
+
+	private RxNettyTCPServer2 sendMessage(byte[] sendMessage) {
+		Observable.from(future)
+				.flatMap(new Func1<ObservableConnection<byte[], byte[]>, Observable<Void>>() {
+
+					@Override public Observable<Void> call(
+							ObservableConnection<byte[], byte[]> connection) {
+						return connection.writeStringAndFlush(new String(sendMessage) + "\n");
+					}
+				})
+				.subscribe(new Observer<Void>() {
+
+					@Override public void onNext(Void t) {
+						LOG.info("onNext : " + t);
+					}
+
+					@Override public void onError(Throwable e) {
+						LOG.error(e.getMessage(), e);
+					}
+
+					@Override public void onCompleted() {
+						LOG.info("sent : \"{}\"", sendMessage);
+					}
+				});
+
+		return this;
+	}
 
 	public static void main(final String[] args) throws InterruptedException {
-		 //initialize tcp server helper        
-		/*Manager.startTCPServer(DEFAULT_PORT, null);
 		
-		Converter converter = new JsonConverter();
+		RxNettyTCPServer2 serverHelper = new RxNettyTCPServer2(DEFAULT_PORT);
+        new Thread(serverHelper).start();
+		 //initialize tcp server helper        
+		//Manager.startTCPServer(DEFAULT_PORT, null);
+		
+		/*Converter converter = new JsonConverter();
 		Map<String, String> configs = new HashMap<>();
 		configs.put("schemas.enable", "false");
 		converter.configure(configs, false);
@@ -190,8 +265,6 @@ public final class RxNettyTCPServer implements Runnable{
 				System.out.println(value.value());
 			}
 		}*/
-		RxNettyTCPServer serverHelper = new RxNettyTCPServer(DEFAULT_PORT);
-        new Thread(serverHelper).start();
 		
 		
 	}
@@ -203,10 +276,22 @@ public final class RxNettyTCPServer implements Runnable{
     @Override
     public void run() {
     	try {
-        	nettyServer = this.createServer();
-            nettyServer.startAndWait();
+        	//nettyServer = this.createServer();
+            //nettyServer.startAndWait();
+        	this.startAndWait();
         } catch (Exception e) {
             LOG.error(e.getMessage() + "Error Happened when runing TCP server thread");
+        }
+    }
+    
+    private void startAndWait() {
+    	nettyServer.start();
+    	this.receiveMessages();
+		this.sendMessage("1".getBytes());
+        try {
+        	nettyServer.waitTillShutdown();
+        } catch (InterruptedException e) {
+            Thread.interrupted();
         }
     }
     
